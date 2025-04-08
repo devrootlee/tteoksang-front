@@ -1,15 +1,46 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
 import StockPredictor from './StockPredictor';
 
+// 창 크기 추적용 커스텀 훅
+function useWindowSize() {
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return windowSize;
+}
+
 function StockSearch() {
   const [keyword, setKeyword] = useState('');
   const [stocks, setStocks] = useState([]);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedStock, setSelectedStock] = useState(null);
+  const observer = useRef();
+  const inputRef = useRef();
+  const { width } = useWindowSize();
+  const isMobile = width <= 768;
 
-  const fetchStocks = async (searchTerm) => {
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const fetchStocks = async (searchTerm, pageNum) => {
     if (!searchTerm.trim()) {
       setStocks([]);
       return;
@@ -21,12 +52,14 @@ function StockSearch() {
         params: {
           stockId: searchTerm,
           stockName: searchTerm,
-          page: 0,
-          size: 100,
+          page: pageNum,
+          size: 10,
         },
       });
 
-      setStocks(res.data.data.stockList);
+      const newStocks = res.data.data.stockList;
+      setStocks((prev) => pageNum === 0 ? newStocks : [...prev, ...newStocks]);
+      setHasMore(newStocks.length === 10);
     } catch (err) {
       console.error('API 에러:', err);
     } finally {
@@ -34,70 +67,60 @@ function StockSearch() {
     }
   };
 
-  const debouncedFetchStocks = useMemo(() => debounce(fetchStocks, 500), []);
+  const debouncedFetchStocks = useMemo(() => debounce((term) => {
+    setPage(0);
+    fetchStocks(term, 0);
+  }, 500), []);
+
+  const lastStockElementRef = useCallback(node => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading) {
+        setPage(prev => prev + 1);
+      }
+    }, { threshold: 0.1 });
+    if (node) observer.current.observe(node);
+  }, [loading, hasMore]);
 
   useEffect(() => {
     setSelectedStock(null);
     debouncedFetchStocks(keyword);
-    return () => {
-      debouncedFetchStocks.cancel();
-    };
+    return () => debouncedFetchStocks.cancel();
   }, [keyword, debouncedFetchStocks]);
+
+  useEffect(() => {
+    if (page > 0) fetchStocks(keyword, page);
+  }, [keyword, page]);
 
   const handleStockClick = (stock) => {
     setSelectedStock(stock);
   };
 
   return (
-    <div
-      style={{
-        width: '500px',
-        margin: '0 auto',
-        padding: '1rem',
+    <div style={{
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
+      {/* 상단 콘텐츠 (리스트 + 차트) */}
+      <div style={{
+        flex: 1,
         display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-      }}
-    >
-      {/* 📈 예측기 영역 - 항상 고정 */}
-      <div
-        style={{
-          borderBottom: '1px solid #ccc',
-          paddingBottom: '0.5rem',
-        }}
-      >
-        <h2 style={{ marginBottom: '0.5rem' }}>📈 떡상 예측기</h2>
-        {selectedStock && <StockPredictor stock={selectedStock} />}
-      </div>
-
-      {/* 🔍 검색창 */}
-      <input
-        type="text"
-        value={keyword}
-        placeholder="종목코드 또는 주식명 입력"
-        onChange={(e) => setKeyword(e.target.value)}
-        style={{
-          padding: '0.75rem',
-          width: '100%',
-          border: '1px solid #ccc',
-          borderRadius: '6px',
-        }}
-      />
-
-      {/* 검색 결과 리스트 */}
-      {keyword && (
-        <div
-          style={{
-            border: '1px solid #ddd',
-            borderRadius: '6px',
-            maxHeight: '300px',
-            overflowY: 'auto',
-            backgroundColor: '#fff',
-          }}
-        >
-          {loading ? (
-            <p style={{ padding: '1rem' }}>🔍 검색 중...</p>
-          ) : stocks.length > 0 ? (
+        flexDirection: isMobile ? 'column' : 'row',
+        overflow: 'hidden',
+      }}>
+        {/* 왼쪽 (또는 위쪽) 종목 리스트 */}
+        <div style={{
+          width: isMobile ? '100%' : '40%',
+          height: isMobile ? '50%' : '100%',
+          overflowY: 'auto',
+          borderRight: isMobile ? 'none' : '1px solid #ddd',
+          borderBottom: isMobile ? '1px solid #ddd' : 'none',
+          padding: '1rem',
+        }}>
+          {keyword && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -108,25 +131,75 @@ function StockSearch() {
                 </tr>
               </thead>
               <tbody>
-                {stocks.map((stock) => (
-                  <tr
-                    key={stock.stockId}
-                    onClick={() => handleStockClick(stock)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td style={tdStyle}>{stock.stockId}</td>
-                    <td style={tdStyle}>{stock.stockName}</td>
-                    <td style={tdStyle}>{stock.nationType}</td>
-                    <td style={tdStyle}>{stock.market}</td>
-                  </tr>
-                ))}
+                {stocks.map((stock, index) => {
+                  const isLastElement = stocks.length === index + 1;
+                  return (
+                    <tr
+                      key={stock.stockId}
+                      ref={isLastElement ? lastStockElementRef : null}
+                      onClick={() => handleStockClick(stock)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td style={tdStyle}>{stock.stockId}</td>
+                      <td style={tdStyle}>{stock.stockName}</td>
+                      <td style={tdStyle}>{stock.nationType}</td>
+                      <td style={tdStyle}>{stock.market}</td>
+                    </tr>
+                  );
+                })}
+                {loading && <tr><td colSpan="4" style={tdStyle}>🔍 로딩 중...</td></tr>}
+                {!hasMore && stocks.length > 0 && <tr><td colSpan="4" style={tdStyle}>끝</td></tr>}
               </tbody>
             </table>
-          ) : (
-            <p style={{ padding: '1rem' }}>🔎 검색 결과가 없습니다.</p>
           )}
         </div>
-      )}
+
+        {/* 오른쪽 (또는 아래쪽) 차트 */}
+        <div style={{
+          flex: 1,
+          padding: '1rem',
+          overflowY: 'auto',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          {selectedStock ? (
+            <div style={{ width: '100%', maxWidth: '1000px' }}>
+              <StockPredictor stock={selectedStock} />
+            </div>
+          ) : (
+            <p style={{ textAlign: 'center' }}>주식을 선택해주세요</p>
+          )}
+        </div>
+      </div>
+
+      {/* 하단 검색창 */}
+      <div style={{
+        padding: '1rem',
+        backgroundColor: '#fff',
+        boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+        zIndex: 10,
+      }}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={keyword}
+          placeholder="종목코드 또는 주식명 입력"
+          onChange={(e) => setKeyword(e.target.value)}
+          style={{
+            padding: '1rem',
+            width: '100%',
+            maxWidth: '800px',
+            margin: '0 auto',
+            display: 'block',
+            border: '2px solid #007bff',
+            borderRadius: '8px',
+            fontSize: '1.1rem',
+            outline: 'none',
+            boxShadow: '0 0 5px rgba(0,123,255,0.3)',
+          }}
+        />
+      </div>
     </div>
   );
 }
