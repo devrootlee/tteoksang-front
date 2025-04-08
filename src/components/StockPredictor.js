@@ -15,6 +15,7 @@ import {
 function StockPredictor({ stock }) {
   const [prediction, setPrediction] = useState(null);
   const [chartData, setChartData] = useState([]);
+  const [nationType, setNationType] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ function StockPredictor({ stock }) {
         console.error('Stock 데이터가 유효하지 않습니다:', stock);
         setPrediction(null);
         setChartData([]);
+        setNationType(null);
         setLoading(false);
         return;
       }
@@ -37,16 +39,19 @@ function StockPredictor({ stock }) {
           }
         });
 
-        const chart = Array.isArray(res.data?.data?.chart) ? res.data.data.chart : [];
+        const data = res.data?.data || {};
+        const chart = Array.isArray(data.chart) ? data.chart : [];
         setChartData(chart);
+        setNationType(data.nationType || stock.nationType);
         setPrediction({
-          result: res.data?.data?.result || '데이터 없음',
-          confidence: res.data?.data?.confidence || '알 수 없음',
+          trend: data.trend || '데이터 없음',
+          predictedPrice: data.predictedPrice || null
         });
       } catch (error) {
         console.error('예측 데이터 불러오기 실패', error);
         setPrediction(null);
         setChartData([]);
+        setNationType(null);
       } finally {
         setLoading(false);
       }
@@ -57,7 +62,7 @@ function StockPredictor({ stock }) {
 
   if (loading) return <LoadingSpinner />;
 
-  if (!prediction || !chartData.length) {
+  if (!prediction || !chartData.length || !nationType) {
     return <p>예측 결과를 불러올 수 없습니다.</p>;
   }
 
@@ -69,22 +74,20 @@ function StockPredictor({ stock }) {
 
       <div style={styles.resultSection}>
         <p style={styles.resultText}>
-          ✅ <strong>예측 결과:</strong> {prediction.result}
+          ✅ <strong>예측 결과:</strong> {prediction.trend}
         </p>
-        <p
-          style={{
-            ...styles.confidence,
-            color: prediction.confidence === '높음' ? '#27ae60' : '#e67e22'
-          }}
-        >
-          🧠 신뢰도: {prediction.confidence}
-        </p>
+        {prediction.predictedPrice && (
+          <p style={styles.resultText}>
+            💰 <strong>예측 가격:</strong> {nationType === '한국' ? '₩' : '$'}{' '}
+            {numeral(prediction.predictedPrice).format(nationType === '한국' ? '0,0' : '0,0.00')}
+          </p>
+        )}
       </div>
 
       <h4 style={styles.chartTitle}>
-        차트 ({stock?.nationType === '한국' ? '₩' : '$'})
+        차트 ({nationType === '한국' ? '₩' : '$'})
       </h4>
-      <Chart chartData={chartData} nationType={stock?.nationType || '한국'} />
+      <Chart chartData={chartData} nationType={nationType} />
     </div>
   );
 }
@@ -121,7 +124,7 @@ const Chart = ({ chartData, nationType }) => {
               : 'N/A'
           }
           formatter={(value, name) => [
-            `${symbol} ${numeral(value || 0).format('0,0')}`,
+            `${symbol} ${numeral(value || 0).format('0,0.00')}`,
             name
           ]}
         />
@@ -191,9 +194,6 @@ const styles = {
   resultText: {
     fontSize: '1rem',
     marginBottom: '0.5rem',
-  },
-  confidence: {
-    fontWeight: 'bold',
   },
   chartTitle: {
     marginBottom: '0.5rem',
