@@ -32,7 +32,7 @@ function StockPredictor({ stock }) {
 
       setLoading(true);
       try {
-        const res = await axios.get('http://localhost:8080/service/prediction', {
+        const res = await axios.get('http://20.196.94.24/:8080/service/prediction', {
           params: {
             stockId: stock.stockId,
             nationType: stock.nationType,
