@@ -32,7 +32,7 @@ function StockPredictor({ stock }) {
 
       setLoading(true);
       try {
-        const res = await axios.get('https://api.tteoksang.kr/:8080/service/prediction', {
+        const res = await axios.get('https://api.tteoksang.kr/service/prediction', {
           params: {
             stockId: stock.stockId,
             nationType: stock.nationType,
