@@ -48,7 +48,7 @@ function StockSearch() {
 
     try {
       setLoading(true);
-      const res = await axios.get('http://20.196.94.24/:8080/service/stock', {
+      const res = await axios.get('https://api.tteoksang.kr/:8080/service/stock', {
         params: {
           stockId: searchTerm,
           stockName: searchTerm,
