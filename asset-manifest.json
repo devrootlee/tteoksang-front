@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/static/css/main.41e88a1c.css",
-    "main.js": "/static/js/main.991ae954.js",
+    "main.js": "/static/js/main.44ad98cd.js",
     "static/js/453.05edcbf5.chunk.js": "/static/js/453.05edcbf5.chunk.js",
     "static/media/무적해병체Regular.ttf": "/static/media/무적해병체Regular.e1e96cc5fa72c39747f2.ttf",
     "index.html": "/index.html",
     "main.41e88a1c.css.map": "/static/css/main.41e88a1c.css.map",
-    "main.991ae954.js.map": "/static/js/main.991ae954.js.map",
+    "main.44ad98cd.js.map": "/static/js/main.44ad98cd.js.map",
     "453.05edcbf5.chunk.js.map": "/static/js/453.05edcbf5.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.41e88a1c.css",
-    "static/js/main.991ae954.js"
+    "static/js/main.44ad98cd.js"
   ]
 }
